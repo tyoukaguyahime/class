@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>クラスSNS</title>
+
+<style>
+body { font-family: sans-serif; background:#eee; text-align:center; }
+.post { background:white; margin:10px; padding:10px; border-radius:10px; }
+</style>
+</head>
+
+<body>
+
+<h2>クラスSNS</h2>
+
+<input id="name" placeholder="名前"><br><br>
+<textarea id="text" placeholder="投稿"></textarea><br>
+<button onclick="post()">投稿</button>
+
+<div id="posts"></div>
+
+<script type="module">
+// Firebase読み込み
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import {
+  getFirestore, collection, addDoc,
+  onSnapshot, doc, updateDoc, deleteDoc
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+// ⚠️ここ後で書き換える
+const firebaseConfig = {
+  apiKey: "ここ",
+  authDomain: "ここ",
+  projectId: "ここ",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const postsRef = collection(db, "posts");
+
+// NGワード
+const ngWords = ["バカ","死ね","アホ"];
+
+// 投稿
+async function post() {
+  let name = document.getElementById("name").value;
+  let text = document.getElementById("text").value;
+
+  if (!name || !text) return;
+
+  if (ngWords.some(w => text.includes(w))) {
+    alert("NGワードが含まれてる");
+    return;
+  }
+
+  let userId = localStorage.getItem("uid");
+  if (!userId) {
+    userId = Math.random().toString(36);
+    localStorage.setItem("uid", userId);
+  }
+
+  await addDoc(postsRef, {
+    name,
+    text,
+    likes: 0,
+    time: Date.now(),
+    userId
+  });
+
+  document.getElementById("text").value = "";
+}
+
+// リアルタイム表示
+onSnapshot(postsRef, (snapshot) => {
+  let html = "";
+
+  snapshot.forEach(docSnap => {
+    let p = docSnap.data();
+    let id = docSnap.id;
+    let date = new Date(p.time).toLocaleString();
+
+    html += `
+    <div class="post">
+      👤 ${p.name}<br>
+      ${p.text}<br>
+      🕒 ${date}<br>
+      ❤️ ${p.likes}
+      <br>
+      <button onclick="like('${id}', ${p.likes})">いいね</button>
+      ${canDelete(p.userId) ? `<button onclick="del('${id}')">削除</button>` : ""}
+    </div>
+    `;
+  });
+
+  document.getElementById("posts").innerHTML = html;
+});
+
+window.like = async (id, likes) => {
+  const ref = doc(db, "posts", id);
+  await updateDoc(ref, { likes: likes + 1 });
+};
+
+function canDelete(postUserId) {
+  return localStorage.getItem("uid") === postUserId;
+}
+
+window.del = async (id) => {
+  const ref = doc(db, "posts", id);
+  await deleteDoc(ref);
+};
+</script>
+
+</body>
+</html>
